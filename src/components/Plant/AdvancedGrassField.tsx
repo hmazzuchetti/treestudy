@@ -4,15 +4,11 @@ import * as THREE from 'three';
 
 // Advanced vertex shader for 3D cone-shaped grass with organic growth
 const advancedGrassVertexShader = `
-attribute vec3 position;
-attribute vec2 uv;
 attribute vec3 grassPosition;
 attribute float grassId;
 attribute float randomSeed;
 attribute float spawnTime;
 
-uniform mat4 projectionMatrix;
-uniform mat4 modelViewMatrix;
 uniform float time;
 uniform float totalPoints;
 uniform float maxGrassBlades;
