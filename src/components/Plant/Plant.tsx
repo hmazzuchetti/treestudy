@@ -2,25 +2,34 @@ import React from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { useAppContext } from '../../hooks/useAppContext';
-import JerromyGrassField from './JerromyGrassField';
+import AdvancedGrassField from './AdvancedGrassField';
 
-// JERROMY's exact scene setup - copied from Grass_Basic/index.js
-const JerromyScene: React.FC<{ totalPoints: number }> = ({ totalPoints }) => {
+// Advanced 3D grass ecosystem scene
+const AdvancedEcosystemScene: React.FC<{ totalPoints: number }> = ({ totalPoints }) => {
   return (
     <>
-      {/* No background color - let it be default */}
+      {/* Ambient lighting for natural look */}
+      <ambientLight intensity={0.4} />
+      <directionalLight 
+        position={[5, 10, 5]} 
+        intensity={0.8} 
+        castShadow
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+      />
 
-      {/* Grid helper like in JERROMY's setup */}
-      <gridHelper args={[10, 10]} />
-      {/* JERROMY's modular grass field with configurable parameters */}
-      <JerromyGrassField
+      {/* Grid helper for reference (can be removed in production) */}
+      <gridHelper args={[10, 10]} visible={false} />
+      
+      {/* Advanced 3D grass field with organic growth */}
+      <AdvancedGrassField
         totalPoints={totalPoints}
-        instances={8000}
-        fieldWidth={8}
-        fieldDepth={8}
-        windSpeed={0.5}
-        grassColor="#4a7c59"
-        groundColor="#2d5a2d"
+        maxGrassBlades={6000}
+        fieldSize={8}
+        grassHeight={1.0}
+        windStrength={0.3}
+        grassColorBase="#2d5a2d"
+        grassColorTip="#4a7c59"
       />
     </>
   );
@@ -41,7 +50,7 @@ const Plant: React.FC = () => {
         }}
         className="w-full h-full"
       >
-        <JerromyScene totalPoints={state.plant.totalPoints} />
+        <AdvancedEcosystemScene totalPoints={state.plant.totalPoints} />
 
         {/* JERROMY's exact OrbitControls setup */}
         <OrbitControls minDistance={2} maxDistance={40} />
@@ -54,7 +63,8 @@ const Plant: React.FC = () => {
           Growth:{' '}
           {Math.floor(Math.min(state.plant.totalPoints / 1000, 1) * 100)}%
         </div>
-        <div>JERROMY Grass Field</div>
+        <div>3D Advanced Grass Field</div>
+        <div>Grass Blades: {Math.floor((state.plant.totalPoints / 1000) * 6000)}</div>
       </div>
     </div>
   );
