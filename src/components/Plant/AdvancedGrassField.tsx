@@ -43,9 +43,7 @@ void main() {
     // Apply easing curve for natural growth animation
     float growthFactor = easeOutCubic(rawGrowth);
     
-    // Add slight delay based on time for organic feel
-    float timeDelay = sin(time * 0.001 + grassId * 0.1) * 0.1 + 1.0;
-    growthFactor *= timeDelay;
+    // Clamp growth factor so grass stops growing once it reaches target
     growthFactor = clamp(growthFactor, 0.0, 1.0);
     
     vGrowthFactor = growthFactor;
@@ -66,10 +64,13 @@ void main() {
     float heightVariation = noise(vec2(grassId * 0.01, randomSeed)) * 0.3 + 0.85;
     grassPos.y *= heightVariation;
     
-    // Wind animation - stronger effect on upper parts
+    // Wind animation - only affects upper parts, base stays anchored
     float windTime = time * 0.002 + grassId * 0.05;
     float windEffect = sin(windTime) * cos(windTime * 1.7) * windStrength;
-    windEffect *= heightFactor * heightFactor; // Quadratic falloff from bottom
+    
+    // Enhanced quadratic falloff - only top 70% of grass affected by wind
+    float windHeightFactor = max(0.0, (heightFactor - 0.3) / 0.7); // Start wind effect at 30% height
+    windEffect *= windHeightFactor * windHeightFactor * windHeightFactor; // Cubic falloff for more anchored base
     
     grassPos.x += windEffect * 0.3;
     grassPos.z += windEffect * 0.2;
@@ -128,11 +129,12 @@ void main() {
     // Apply lighting
     grassColor *= lightDot;
     
-    // Add slight transparency at edges for softer look
-    float edgeAlpha = 1.0 - abs(vUv.x) * 0.3;
+    // Enhanced transparency - more transparent at tips, solid at base
+    float heightTransparency = mix(0.9, 0.6, heightFactor); // More transparent at tips
+    float edgeAlpha = 1.0 - abs(vUv.x) * 0.2; // Softer edge transparency
     
-    // Fade in as grass grows
-    float alpha = vGrowthFactor * edgeAlpha;
+    // Combine growth, height, and edge transparency
+    float alpha = vGrowthFactor * heightTransparency * edgeAlpha;
     
     gl_FragColor = vec4(grassColor, alpha);
 }
@@ -154,8 +156,8 @@ export const AdvancedGrassField: React.FC<AdvancedGrassFieldProps> = ({
   fieldSize = 8,
   grassHeight = 1.2,
   windStrength = 0.5,
-  grassColorBase = '#2d5a2d',
-  grassColorTip = '#4a7c59'
+  grassColorBase = '#4a7c4a',
+  grassColorTip = '#7db87d'
 }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
@@ -206,30 +208,71 @@ export const AdvancedGrassField: React.FC<AdvancedGrassFieldProps> = ({
     return geometry;
   }, [grassHeight]);
 
-  // Generate instance data for grass blades
+  // Generate instance data for grass blades with collision detection
   const instanceData = useMemo(() => {
     const positions: number[] = [];
     const grassIds: number[] = [];
     const randomSeeds: number[] = [];
     const spawnTimes: number[] = [];
     
-    for (let i = 0; i < maxGrassBlades; i++) {
-      // Random position within field
-      const x = (Math.random() - 0.5) * fieldSize;
-      const z = (Math.random() - 0.5) * fieldSize;
-      const y = 0; // Ground level
+    // Collision detection parameters
+    const minDistance = 0.3; // Minimum distance between grass blades
+    const maxAttempts = 50; // Maximum attempts to place each blade
+    const placedPositions: { x: number; z: number }[] = [];
+    
+    // Helper function to check if position is valid (no collisions)
+    const isValidPosition = (x: number, z: number): boolean => {
+      // Check ground boundaries (leave some padding from edges)
+      const padding = 0.5;
+      if (Math.abs(x) > (fieldSize / 2 - padding) || Math.abs(z) > (fieldSize / 2 - padding)) {
+        return false;
+      }
       
-      positions.push(x, y, z);
-      grassIds.push(i);
-      randomSeeds.push(Math.random());
-      spawnTimes.push(Math.random() * 10); // Staggered spawn times
+      // Check collision with existing grass blades
+      for (const pos of placedPositions) {
+        const distance = Math.sqrt((x - pos.x) ** 2 + (z - pos.z) ** 2);
+        if (distance < minDistance) {
+          return false;
+        }
+      }
+      return true;
+    };
+    
+    for (let i = 0; i < maxGrassBlades; i++) {
+      let placed = false;
+      let attempts = 0;
+      
+      while (!placed && attempts < maxAttempts) {
+        // Generate random position within field
+        const x = (Math.random() - 0.5) * fieldSize;
+        const z = (Math.random() - 0.5) * fieldSize;
+        
+        if (isValidPosition(x, z)) {
+          const y = 0; // Ground level
+          
+          positions.push(x, y, z);
+          grassIds.push(i);
+          randomSeeds.push(Math.random());
+          spawnTimes.push(Math.random() * 10); // Staggered spawn times
+          
+          placedPositions.push({ x, z });
+          placed = true;
+        }
+        attempts++;
+      }
+      
+      // If we couldn't place this blade after max attempts, skip it
+      if (!placed) {
+        break;
+      }
     }
     
     return {
       positions: new Float32Array(positions),
       grassIds: new Float32Array(grassIds),
       randomSeeds: new Float32Array(randomSeeds),
-      spawnTimes: new Float32Array(spawnTimes)
+      spawnTimes: new Float32Array(spawnTimes),
+      actualCount: positions.length / 3 // Actual number of placed grass blades
     };
   }, [maxGrassBlades, fieldSize]);
 
@@ -279,7 +322,7 @@ export const AdvancedGrassField: React.FC<AdvancedGrassFieldProps> = ({
         new THREE.InstancedBufferAttribute(instanceData.spawnTimes, 1)
       );
       
-      mesh.count = maxGrassBlades;
+      mesh.count = instanceData.actualCount || maxGrassBlades;
     }
   }, [instanceData, maxGrassBlades]);
 
